@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NIHONGO NÈ | Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f5f7fb;color:#294d6c}
+header{background:#294d6c;color:white;padding:24px}
+main{max-width:1100px;margin:auto;padding:24px}
+.panel{background:white;padding:24px;border-radius:18px;margin-bottom:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px}
+.tile{padding:24px;border-radius:16px;background:#f9e3eb}
+.tile:nth-child(2){background:#dcecf7}
+.tile:nth-child(3){background:#eae3f7}
+.tile:nth-child(4){background:#deefe5}
+button,a.btn{display:inline-block;background:#294d6c;color:white;padding:12px 18px;border:0;border-radius:10px;text-decoration:none;cursor:pointer}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header>
+<h2>NIHONGO NÈ | ADMIN</h2>
+<p>Japanese Learning Studio</p>
+</header>
+
+<main>
+<section class="panel">
+<h2 id="status">Đang kiểm tra quyền truy cập...</h2>
+<p id="message"></p>
+<a class="btn" href="./index.html">Về trang học tập</a>
+</section>
+
+<section id="dashboard" hidden>
+<div class="panel">
+<h2>Trang quản trị</h2>
+<p>Chào mừng bạn đến với hệ thống quản lý NIHONGO NÈ.</p>
+<button id="logout">Đăng xuất</button>
+</div>
+
+<div class="grid">
+<div class="tile"><h3>Học viên</h3><p>Chưa tích hợp</p></div>
+<div class="tile"><h3>Giáo viên</h3><p>Chưa tích hợp</p></div>
+<div class="tile"><h3>Ngân hàng câu hỏi</h3><p>Chưa tích hợp</p></div>
+<div class="tile"><h3>Đề thi JLPT</h3><p>Chưa tích hợp</p></div>
+</div>
+
+<div class="panel" style="margin-top:20px">
+<h2>Quản lý đào tạo</h2>
+<p>Trình độ: N5 · N4 · N3 · N2 · N1</p>
+<p>Tiếng Nhật khó – đã có chúng tớ lo!</p>
+</div>
+</section>
+</main>
+
+<script>
+const URL_SUPABASE =
+'https://hpsjbclptasirfvrxwhn.supabase.co';
+
+const PUBLIC_KEY =
+'sb_publishable_bRBYTDMA7u0LrtQZwO8_7A_hSOy2jw5';
+
+const db = window.supabase.createClient(
+URL_SUPABASE, PUBLIC_KEY
+);
+
+const status = document.getElementById('status');
+const message = document.getElementById('message');
+const dashboard = document.getElementById('dashboard');
+
+async function checkAdmin(){
+dashboard.hidden = true;
+
+try{
+const {data:{user},error:authError} =
+await db.auth.getUser();
+
+if(authError || !user){
+status.textContent = 'Bạn chưa đăng nhập';
+message.textContent =
+'Hãy đăng nhập tại trang học tập trước.';
+return;
+}
+
+const {data,error} = await db
+.from('user_roles')
+.select('role')
+.eq('user_id',user.id)
+.maybeSingle();
+
+if(error){
+status.textContent = 'Không thể kiểm tra quyền';
+message.textContent = error.message;
+return;
+}
+
+if(data?.role !== 'admin'){
+status.textContent = 'Không có quyền truy cập';
+message.textContent =
+'Trang này chỉ dành cho quản trị viên.';
+return;
+}
+
+status.textContent = 'Xác nhận quyền Admin thành công';
+message.textContent = user.email || '';
+dashboard.hidden = false;
+
+}catch(error){
+status.textContent = 'Lỗi kết nối';
+message.textContent = error.message;
+}
+}
+
+document.getElementById('logout').onclick =
+async function(){
+const {error} = await db.auth.signOut();
+if(error){
+message.textContent = error.message;
+return;
+}
+location.href = './index.html';
+};
+
+db.auth.onAuthStateChange((event)=>{
+if(event === 'SIGNED_OUT'){
+dashboard.hidden = true;
+status.textContent = 'Bạn đã đăng xuất';
+message.textContent = '';
+}
+});
+
+checkAdmin();
+</script>
+</body>
+</html>
