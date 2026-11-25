@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="vi">
 <head>
@@ -146,6 +145,8 @@ let db,
     storageKey = '',
     active = false;
 
+let userId = null, saving = false;
+
 const levels = ['N5','N4','N3','N2','N1'];
 
 const status = t => $('status').textContent = t;
@@ -240,29 +241,57 @@ function filter(){
     render();
 }
 
-function mark(r,value){
-
-    marks[r.id] = value;
-
-    try{
-        localStorage.setItem(
-            storageKey,
-            JSON.stringify(marks)
-        );
-    }catch(e){
-        status('Không thể lưu tiến độ trên trình duyệt này.');
-    }
-
-    if($('state').value){
-        filter();
-    }else{
-
-        if(mode === 'flash'){
-            index = (index + 1) % filtered.length;
-            flipped = false;
+async function mark(r,value){
+    if(!active || saving) return;
+    saving = true;
+    const uid = userId;
+    status('Đang lưu tiến độ...');
+    try {
+        const {error} = await db.from('vocabulary_progress').upsert({
+            user_id: uid, vocabulary_id: r.id, status: value,
+            updated_at: new Date().toISOString()
+        }, {onConflict:'user_id,vocabulary_id'});
+        if(error) throw error;
+        if(!active || userId !== uid) return;
+        marks[r.id] = value;
+        if($('state').value) filter();
+        else {
+            if(mode === 'flash' && filtered[index]?.id === r.id){
+                index = (index + 1) % filtered.length;
+                flipped = false;
+            }
+            render();
         }
+        status('Đã lưu tiến độ lên Supabase.');
+    } catch(e) {
+        if(active && userId === uid) status('Lỗi lưu tiến độ: ' + e.message + '. Hãy thử lại.');
+    } finally { saving = false; }
+}
 
-        render();
+async function loadProgress(uid){
+    const result = {};
+    for(let start=0;;){
+        const {data,error} = await db.from('vocabulary_progress')
+            .select('vocabulary_id,status').eq('user_id',uid)
+            .order('vocabulary_id').range(start,start+499);
+        if(error) throw error;
+        if(!data.length) break;
+        for(const r of data) result[r.vocabulary_id] = r.status;
+        start += data.length;
+    }
+    return result;
+}
+
+async function migrateProgress(uid, old){
+    const valid = new Set(all.map(r=>r.id));
+    const rows = Object.entries(old).filter(([id,v])=>valid.has(id) && ['known','review','new'].includes(v))
+        .map(([id,v])=>({user_id:uid,vocabulary_id:id,status:v}));
+    for(let i=0;i<rows.length;i+=200){
+        if(!active || userId!==uid) return;
+        const {error} = await db.from('vocabulary_progress').upsert(rows.slice(i,i+200),{
+            onConflict:'user_id,vocabulary_id',ignoreDuplicates:true
+        });
+        if(error) throw error;
     }
 }
 
@@ -641,6 +670,7 @@ async function init(){
             if(event === 'SIGNED_OUT'){
 
                 active = false;
+                userId = null;
 
                 all = [];
                 filtered = [];
@@ -669,6 +699,7 @@ async function init(){
         }
 
         active = true;
+        userId = user.id;
 
         storageKey = 'nihongo-vocab-v1-' + user.id;
 
@@ -716,17 +747,26 @@ async function init(){
             a.word.localeCompare(b.word,'ja')
         );
 
+        const old = marks;
+        await migrateProgress(user.id, old);
+        if(!active || userId !== user.id) return;
+        const remote = await loadProgress(user.id);
+        if(!active || userId !== user.id) return;
+        marks = remote;
+        // Retire legacy cache only after successful migration and read.
+        try { localStorage.removeItem(storageKey); } catch(e) {}
         choices();
 
         $('app').hidden = false;
 
         filter();
 
-        status('Đã kết nối kho từ vựng.');
+        status('Đã kết nối kho từ vựng và đồng bộ tiến độ.');
 
     }catch(e){
-
-        status('Lỗi tải từ vựng: ' + e.message);
+        active = false;
+        $('app').hidden = true;
+        status('Lỗi tải từ vựng hoặc tiến độ: ' + e.message);
     }
 }
 
