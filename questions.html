@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NIHONGO NÈ | Ngân hàng câu hỏi</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f5f7fb;color:#294d6c;font:16px Arial,sans-serif}
+header{background:#294d6c;color:white;padding:26px}
+main{max-width:1200px;margin:auto;padding:24px}
+.panel{background:white;padding:24px;border-radius:18px;margin-bottom:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:15px}
+.tile{padding:22px;border-radius:16px;background:#f9e3eb}
+.tile:nth-child(2){background:#dcecf7}
+.tile:nth-child(3){background:#deefe5}
+.tile strong{display:block;font-size:32px;margin-top:12px}
+input,select,textarea{width:100%;padding:12px;border:1px solid #ccd7e0;border-radius:9px;font:inherit;color:#294d6c;background:white}
+textarea{min-height:90px;resize:vertical}
+label{display:block;font-weight:bold;margin:15px 0 7px}
+button,a.btn{display:inline-block;background:#294d6c;color:white;padding:12px 18px;border:0;border-radius:9px;text-decoration:none;cursor:pointer;font:inherit}
+button:disabled{opacity:.5;cursor:wait}
+button.danger{background:#b65360}
+button.light{background:#e4edf4;color:#294d6c}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+.scroll{overflow:auto}
+table{width:100%;border-collapse:collapse}
+th,td{padding:12px;border-bottom:1px solid #e4eaf0;text-align:left}
+th{background:#f5f7fb}
+td button{font-size:13px;padding:8px;margin:3px}
+[hidden]{display:none!important}
+#notice{white-space:pre-wrap}
+.check{display:flex;align-items:center;gap:10px}
+.check input{width:auto}
+small{color:#64748b}
+</style>
+</head>
+<body>
+
+<header>
+<h1>NIHONGO NÈ</h1>
+<p>Japanese Learning Studio | Question Bank</p>
+</header>
+
+<main>
+
+<section class="panel">
+<h2 id="status">Đang kiểm tra quyền truy cập...</h2>
+<a class="btn" href="./admin.html">Về trang Admin</a>
+</section>
+
+<div id="dashboard" hidden>
+
+<section class="panel">
+<h2>Ngân hàng câu hỏi JLPT</h2>
+<div class="grid">
+<div class="tile">Tổng câu hỏi<strong id="total">0</strong></div>
+<div class="tile">Đã xuất bản<strong id="publishedCount">0</strong></div>
+<div class="tile">Bản nháp<strong id="draftCount">0</strong></div>
+</div>
+<p id="notice" role="status"></p>
+<div class="actions">
+<button id="newQuestion">+ Thêm câu hỏi</button>
+<button id="refresh" class="light">Làm mới</button>
+</div>
+</section>
+
+<section class="panel" id="editor" hidden>
+<h2 id="editorTitle">Thêm câu hỏi mới</h2>
+
+<form id="questionForm">
+
+<div class="grid">
+<div>
+<label>Trình độ JLPT</label>
+<select id="level">
+<option>N5</option>
+<option>N4</option>
+<option>N3</option>
+<option>N2</option>
+<option>N1</option>
+</select>
+</div>
+
+<div>
+<label>Kỹ năng</label>
+<select id="skill">
+<option>Kanji</option>
+<option>Từ vựng</option>
+<option>Ngữ pháp</option>
+<option>Đọc hiểu</option>
+<option>Nghe hiểu</option>
+</select>
+</div>
+
+<div>
+<label>Mondai (問題)</label>
+<input id="mondai" type="number" min="1">
+</div>
+</div>
+
+<label>Đoạn văn / Ngữ cảnh</label>
+<textarea id="passage"></textarea>
+
+<label>Nội dung câu hỏi</label>
+<textarea id="question" required></textarea>
+
+<label>Phương án 1</label>
+<input id="option_1" required>
+
+<label>Phương án 2</label>
+<input id="option_2" required>
+
+<label>Phương án 3</label>
+<input id="option_3" required>
+
+<label>Phương án 4</label>
+<input id="option_4">
+
+<label>Đáp án chính xác</label>
+<select id="correct_answer">
+<option value="1">Phương án 1</option>
+<option value="2">Phương án 2</option>
+<option value="3">Phương án 3</option>
+<option value="4">Phương án 4</option>
+</select>
+
+<label>Giải thích đáp án</label>
+<textarea id="explanation"></textarea>
+
+<label>Bản dịch tiếng Việt</label>
+<textarea id="translation"></textarea>
+
+<label>URL âm thanh</label>
+<input id="audio_url" type="url">
+
+<label>URL hình ảnh</label>
+<input id="image_url" type="url">
+
+<label class="check">
+<input id="published" type="checkbox">
+Đánh dấu đã xuất bản
+</label>
+
+<small>Trạng thái xuất bản chưa tự động cấp quyền đọc cho học viên.</small>
+
+<div class="actions">
+<button id="save" type="submit">Lưu câu hỏi</button>
+<button id="cancel" type="button" class="light">Hủy</button>
+</div>
+<p id="formNotice" role="status"></p>
+</form>
+</section>
+
+<section class="panel">
+<h2>Danh sách câu hỏi</h2>
+
+<div class="grid">
+<input id="search" placeholder="Tìm kiếm câu hỏi...">
+
+<select id="filterLevel">
+<option value="">Tất cả trình độ</option>
+<option>N5</option>
+<option>N4</option>
+<option>N3</option>
+<option>N2</option>
+<option>N1</option>
+</select>
+
+<select id="filterSkill">
+<option value="">Tất cả kỹ năng</option>
+<option>Kanji</option>
+<option>Từ vựng</option>
+<option>Ngữ pháp</option>
+<option>Đọc hiểu</option>
+<option>Nghe hiểu</option>
+</select>
+</div>
+
+<p id="count"></p>
+
+<div class="scroll">
+<table>
+<thead>
+<tr>
+<th>JLPT</th>
+<th>Kỹ năng</th>
+<th>Mondai</th>
+<th>Câu hỏi</th>
+<th>Đáp án</th>
+<th>Trạng thái</th>
+<th>Thao tác</th>
+</tr>
+</thead>
+<tbody id="rows"></tbody>
+</table>
+</div>
+</section>
+
+<p style="text-align:center">
+Tiếng Nhật khó – đã có chúng tớ lo!
+</p>
+
+</div>
+</main>
+
+<script>
+const db = window.supabase.createClient(
+'https://hpsjbclptasirfvrxwhn.supabase.co',
+'sb_publishable_bRBYTDMA7u0LrtQZwO8_7A_hSOy2jw5'
+);
+
+const $ = id => document.getElementById(id);
+
+let questions = [];
+let editingId = null;
+let generation = 0;
+let busy = false;
+
+const fields = [
+'level','skill','mondai','passage','question',
+'option_1','option_2','option_3','option_4',
+'correct_answer','explanation','translation',
+'audio_url','image_url'
+];
+
+async function checkAdmin(){
+const {data:{user},error} = await db.auth.getUser();
+
+if(error || !user){
+throw new Error('Bạn chưa đăng nhập.');
+}
+
+const role = await db.from('user_roles')
+.select('role')
+.eq('user_id',user.id)
+.maybeSingle();
+
+if(role.error) throw role.error;
+
+if(role.data?.role !== 'admin'){
+throw new Error('Bạn không có quyền Admin.');
+}
+
+return user;
+}
+
+async function start(){
+const run = ++generation;
+$('dashboard').hidden = true;
+try{
+await checkAdmin();
+if(run !== generation) return;
+$('status').textContent = 'Xác nhận quyền Admin thành công';
+$('dashboard').hidden = false;
+await loadQuestions();
+}catch(e){
+if(run !== generation) return;
+$('status').textContent = e.message;
+$('dashboard').hidden = true;
+}
+}
+
+async function loadQuestions(){
+const run = generation;
+$('notice').textContent = 'Đang tải dữ liệu...';
+
+try{
+await checkAdmin();
+
+let all = [];
+let offset = 0;
+
+while(true){
+const {data,error} = await db.from('questions')
+.select('*')
+.order('id')
+.range(offset,offset+499);
+
+if(error) throw error;
+if(run !== generation) return;
+if(!data.length) break;
+
+all.push(...data);
+offset += data.length;
+}
+
+questions = all;
+
+$('total').textContent = all.length;
+$('publishedCount').textContent =
+all.filter(q=>q.published).length;
+
+$('draftCount').textContent =
+all.filter(q=>!q.published).length;
+
+$('notice').textContent = 'Đã tải ngân hàng câu hỏi.';
+render();
+
+}catch(e){
+if(run !== generation) return;
+questions = [];
+$('rows').replaceChildren();
+$('total').textContent = '—';
+$('publishedCount').textContent = '—';
+$('draftCount').textContent = '—';
+$('notice').textContent = 'Lỗi: '+e.message;
+}
+}
+
+function render(){
+const search = $('search').value.toLowerCase();
+const level = $('filterLevel').value;
+const skill = $('filterSkill').value;
+
+const filtered = questions.filter(q=>
+(!level || q.level===level) &&
+(!skill || q.skill===skill) &&
+String(q.question||'').toLowerCase().includes(search)
+);
+
+$('count').textContent =
+filtered.length+' / '+questions.length+' câu hỏi';
+
+$('rows').replaceChildren();
+
+for(const q of filtered){
+const tr = document.createElement('tr');
+
+const values = [
+q.level,q.skill,q.mondai??'—',
+q.question,q.correct_answer,
+q.published?'Đã xuất bản':'Bản nháp'
+];
+
+for(const value of values){
+const td = document.createElement('td');
+td.textContent = value;
+tr.append(td);
+}
+
+const actions = document.createElement('td');
+
+const edit = document.createElement('button');
+edit.textContent = 'Sửa';
+edit.onclick = ()=>openEditor(q);
+
+const del = document.createElement('button');
+del.textContent = 'Xóa';
+del.className = 'danger';
+del.onclick = ()=>deleteQuestion(q.id);
+
+actions.append(edit,del);
+tr.append(actions);
+$('rows').append(tr);
+}
+}
+
+function openEditor(q=null){
+if(busy) return;
+editingId = q?.id ?? null;
+$('questionForm').reset();
+
+$('editorTitle').textContent =
+q?'Chỉnh sửa câu hỏi':'Thêm câu hỏi mới';
+
+if(q){
+for(const field of fields){
+$(field).value = q[field]??'';
+}
+$('published').checked = q.published===true;
+}
+
+$('formNotice').textContent = '';
+$('editor').hidden = false;
+$('editor').scrollIntoView({behavior:'smooth'});
+}
+
+$('questionForm').onsubmit = async event=>{
+event.preventDefault();
+if(busy) return;
+
+const payload = {};
+
+for(const field of fields){
+payload[field] = $(field).value.trim() || null;
+}
+
+payload.mondai = payload.mondai
+? Number(payload.mondai):null;
+
+payload.correct_answer =
+Number(payload.correct_answer);
+
+payload.published = $('published').checked;
+
+if(!payload.question ||
+!payload.option_1 ||
+!payload.option_2 ||
+!payload.option_3 ||
+!payload['option_'+payload.correct_answer]){
+$('formNotice').textContent =
+'Vui lòng kiểm tra câu hỏi và các phương án.';
+return;
+}
+
+const run = generation;
+busy = true;
+$('save').disabled = true;
+
+try{
+await checkAdmin();
+
+const query = editingId
+? db.from('questions').update(payload).eq('id',editingId)
+: db.from('questions').insert(payload);
+
+const {error} = await query.select('id').single();
+
+if(error) throw error;
+if(run !== generation) return;
+
+$('editor').hidden = true;
+editingId = null;
+await loadQuestions();
+
+}catch(e){
+if(run === generation){
+$('formNotice').textContent = 'Lỗi: '+e.message;
+}
+}finally{
+busy = false;
+$('save').disabled = false;
+}
+};
+
+async function deleteQuestion(id){
+if(busy) return;
+
+if(!confirm('Bạn chắc chắn muốn xóa câu hỏi này?')){
+return;
+}
+
+busy = true;
+const run = generation;
+
+try{
+await checkAdmin();
+
+const {error} = await db.from('questions')
+.delete().eq('id',id).select('id').single();
+
+if(error) throw error;
+if(run !== generation) return;
+
+$('editor').hidden = true;
+editingId = null;
+await loadQuestions();
+
+}catch(e){
+if(run === generation){
+$('notice').textContent = 'Lỗi: '+e.message;
+}
+}finally{
+busy = false;
+}
+}
+
+$('newQuestion').onclick = ()=>openEditor();
+$('cancel').onclick = ()=>{
+if(!busy) $('editor').hidden = true;
+};
+$('refresh').onclick = loadQuestions;
+$('search').oninput = render;
+$('filterLevel').onchange = render;
+$('filterSkill').onchange = render;
+
+db.auth.onAuthStateChange(event=>{
+if(event==='SIGNED_OUT'){
+++generation;
+questions = [];
+editingId = null;
+$('rows').replaceChildren();
+$('questionForm').reset();
+$('editor').hidden = true;
+$('dashboard').hidden = true;
+$('status').textContent = 'Bạn đã đăng xuất.';
+}
+});
+
+start();
+</script>
+
+</body>
+</html>
